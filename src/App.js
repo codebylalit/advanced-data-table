@@ -1,25 +1,52 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useMemo } from "react";
+import AdvancedTable from "./components/AdvanceTable";
+import sampleData from "./SampleData.json";
 
-function App() {
+const App = () => {
+ const columns = [
+   {
+     Header: "ID",
+     accessor: "id",
+   },
+   {
+     Header: "Name",
+     accessor: "name",
+   },
+   {
+     Header: "Category",
+     accessor: "category",
+   },
+   {
+     Header: "Subcategory",
+     accessor: "subcategory",
+   },
+   {
+     Header: "Created At",
+     accessor: "createdAt",
+   },
+   {
+     Header: "Updated At",
+     accessor: "updatedAt",
+   },
+   {
+     Header: "Price",
+     accessor: "price",
+   },
+   {
+     Header: "Sale Price",
+     accessor: "salePrice",
+   },
+ ];
+
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <h1 className="text-2xl font-bold text-center mb-4">
+        Advanced Data Table
+      </h1>
+      <AdvancedTable columns={columns} data={sampleData} />
     </div>
   );
-}
+};
 
 export default App;

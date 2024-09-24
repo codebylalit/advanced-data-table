@@ -1,0 +1,598 @@
+import React, { useState } from "react";
+import { useTable, useSortBy } from "react-table";
+import {
+  EyeIcon,
+  ArrowsUpDownIcon,
+  Bars3Icon,
+  Squares2X2Icon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+
+const TableComponent = ({ columns, data }) => {
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showGroupingPanel, setShowGroupingPanel] = useState(false);
+  const [showSortingPanel, setShowSortingPanel] = useState(false); // New state for showing sorting panel
+  const [groupedData, setGroupedData] = useState(null);
+  const [selectedGroupColumn, setSelectedGroupColumn] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [showEyePanel, setShowEyePanel] = useState(false); // New state for eye icon panel
+  const [showColumnPanel, setShowColumnPanel] = useState(false);
+    const [filters, setFilters] = useState({
+      name: "",
+      category: "",
+      subcategory: "",
+      createdAt: { from: "", to: "" },
+      updatedAt: { from: "", to: "" },
+      price: { from: "", to: "" },
+    });
+  const [columnVisibility, setColumnVisibility] = useState(
+    columns.reduce((acc, column) => {
+      acc[column.accessor] = true;
+      return acc;
+    }, {})
+  );
+  const {
+    getTableProps,
+    getTableBodyProps,
+    headerGroups,
+    rows,
+    prepareRow,
+    setSortBy,
+  } = useTable({ columns, data }, useSortBy);
+
+  const rowsPerPage = 10;
+  const startRow = currentPage * rowsPerPage;
+  const endRow = startRow + rowsPerPage;
+
+  
+  // Filter the rows based on the filters state
+  const filteredRows = rows.filter((row) => {
+    const { name, category, subcategory, createdAt, updatedAt, price } =
+      filters;
+
+    // Filter by name
+  const matchesName = name
+    ? row.original.someColumnName &&
+      row.original.someColumnName.toLowerCase().includes(name.toLowerCase())
+    : true;
+
+    // Filter by category
+    const matchesCategory = category
+      ? row.original.category === category
+      : true;
+
+    // Filter by subcategory
+    const matchesSubcategory = subcategory
+      ? row.original.subcategory === subcategory
+      : true;
+
+    // Filter by createdAt range
+    const matchesCreatedAt =
+      (!createdAt.from ||
+        new Date(row.original.createdAt) >= new Date(createdAt.from)) &&
+      (!createdAt.to ||
+        new Date(row.original.createdAt) <= new Date(createdAt.to));
+
+    // Filter by updatedAt range
+    const matchesUpdatedAt =
+      (!updatedAt.from ||
+        new Date(row.original.updatedAt) >= new Date(updatedAt.from)) &&
+      (!updatedAt.to ||
+        new Date(row.original.updatedAt) <= new Date(updatedAt.to));
+
+    // Filter by price range
+    const matchesPrice =
+      (!price.from || row.original.price >= price.from) &&
+      (!price.to || row.original.price <= price.to);
+
+    return (
+      matchesName &&
+      matchesCategory &&
+      matchesSubcategory &&
+      matchesCreatedAt &&
+      matchesUpdatedAt &&
+      matchesPrice
+    );
+  });
+
+  const displayedRows = groupedData
+    ? groupedData
+        .map((group) => group.items)
+        .flat()
+        .slice(startRow, endRow)
+    : rows.slice(startRow, endRow);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleToggleColumn = (accessor) => {
+    const newVisibility = {
+      ...columnVisibility,
+      [accessor]: !columnVisibility[accessor],
+    };
+    setColumnVisibility(newVisibility);
+  };
+
+  const pageCount = Math.ceil(
+    (groupedData ? groupedData.map((group) => group.items).flat() : rows)
+      .length / rowsPerPage
+  );
+
+  const handleGroupByCategoryAndSubcategory = (
+    categoryColumnId,
+    subcategoryColumnId
+  ) => {
+    const grouped = data.reduce((acc, item) => {
+      const category = item[categoryColumnId] || "No Category";
+      const subcategory = item[subcategoryColumnId] || "No Subcategory";
+      if (!acc[category]) acc[category] = {};
+      if (!acc[category][subcategory]) acc[category][subcategory] = [];
+      acc[category][subcategory].push(item);
+      return acc;
+    }, {});
+
+    const groupedArray = Object.keys(grouped).map((category) => ({
+      category,
+      subcategories: Object.keys(grouped[category]).map((subcategory) => ({
+        subcategory,
+        items: grouped[category][subcategory],
+      })),
+    }));
+
+    setGroupedData(groupedArray);
+    setCurrentPage(0);
+  };
+
+  const handleApplyGrouping = () => {
+    if (selectedGroupColumn === "category") {
+      handleGroupByCategoryAndSubcategory("category", "subcategory");
+    }
+  };
+
+  const handleClearGrouping = () => {
+    setGroupedData(null);
+    setSelectedGroupColumn("");
+  };
+
+  // Function to clear sorting
+  const handleClearSorting = () => {
+    setSortBy([]); // Reset sorting to default state
+  };
+
+   const handleFilterChange = (field, value) => {
+     setFilters((prevFilters) => ({
+       ...prevFilters,
+       [field]: value,
+     }));
+   };
+
+  const handleSort = (columnId) => {
+    const newData = [...data];
+    const sortedData = newData.sort((a, b) => {
+      if (a[columnId] < b[columnId]) return -1;
+      if (a[columnId] > b[columnId]) return 1;
+      return 0;
+    });
+    setGroupedData(sortedData);
+  };
+
+  return (
+    <div className="p-4">
+      <div className="flex justify-between mb-4">
+        <input
+          type="text"
+          placeholder="Search"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="border px-2 py-1 rounded-md w-1/3"
+        />
+
+        <div className="flex space-x-2 items-center">
+          <EyeIcon
+            className="w-5 h-5 text-gray-600 cursor-pointer"
+            onClick={() => setShowEyePanel(!showEyePanel)} // Toggle eye panel
+          />
+          <ArrowsUpDownIcon
+            className="w-5 h-5 text-gray-600 cursor-pointer"
+            onClick={() => setShowSortingPanel(!showSortingPanel)} // Toggle the sorting panel
+          />
+          <Bars3Icon
+            className="w-5 h-5 text-gray-600 cursor-pointer"
+            onClick={() => setShowColumnPanel(!showColumnPanel)}
+          />
+          <Squares2X2Icon
+            className="w-5 h-5 text-gray-600 cursor-pointer"
+            onClick={() => setShowGroupingPanel(!showGroupingPanel)}
+          />
+        </div>
+      </div>
+
+      <table {...getTableProps()} className="min-w-full table-auto">
+        <thead>
+          {headerGroups.map((headerGroup) => (
+            <tr {...headerGroup.getHeaderGroupProps()} className="border-b">
+              {headerGroup.headers.map((column) => (
+                <th
+                  {...column.getHeaderProps(column.getSortByToggleProps())}
+                  className="px-4 py-2 text-left text-gray-600 text-sm"
+                >
+                  {column.render("Header")}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+
+        <tbody {...getTableBodyProps()}>
+          {groupedData && groupedData.length > 0
+            ? groupedData.map((group) => (
+                <React.Fragment key={group.category}>
+                  <tr className="bg-gray-200">
+                    <td
+                      colSpan={columns.length}
+                      className="px-4 py-2 font-semibold"
+                    >
+                      Category: {group.category}
+                    </td>
+                  </tr>
+                  {group.subcategories.map((subgroup) => (
+                    <React.Fragment key={subgroup.subcategory}>
+                      <tr className="bg-gray-100">
+                        <td
+                          colSpan={columns.length}
+                          className="px-4 py-2 font-medium"
+                        >
+                          Subcategory: {subgroup.subcategory}
+                        </td>
+                      </tr>
+                      {subgroup.items.map((item, index) => (
+                        <tr key={index} className="border-b">
+                          {columns.map((column) => (
+                            <td
+                              key={column.accessor}
+                              className={`px-4 py-2 text-sm text-gray-700 ${
+                                !columnVisibility[column.accessor]
+                                  ? "hidden"
+                                  : ""
+                              }`}
+                            >
+                              {item[column.accessor]}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </React.Fragment>
+              ))
+            : displayedRows.map((row) => {
+                prepareRow(row);
+                return (
+                  <tr {...row.getRowProps()} className="border-b">
+                    {row.cells.map((cell) => (
+                      <td
+                        {...cell.getCellProps()}
+                        className={`px-4 py-2 text-sm text-gray-700 ${
+                          !columnVisibility[cell.column.id] ? "hidden" : ""
+                        }`}
+                      >
+                        {cell.render("Cell")}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+        </tbody>
+      </table>
+
+      <div className="flex justify-between items-center mt-4">
+        <span className="text-sm text-gray-600">
+          Showing {startRow + 1} to{" "}
+          {Math.min(endRow, (groupedData || rows).length)} of{" "}
+          {(groupedData || rows).length} entries
+        </span>
+
+        <div className="flex justify-center space-x-1">
+          {Array.from({ length: pageCount }, (_, index) => (
+            <button
+              key={index}
+              onClick={() => handlePageChange(index)}
+              className={`px-3 py-1 border text-sm text-gray-700 rounded-md ${
+                currentPage === index ? "bg-gray-200" : ""
+              }`}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Eye Icon Panel */}
+      {showEyePanel && (
+        <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold">Filters</h2>
+            <XMarkIcon
+              className="w-5 h-5 text-gray-600 cursor-pointer"
+              onClick={() => setShowEyePanel(false)}
+            />
+          </div>
+
+          <div className="mt-4">
+            {/* Name Filter */}
+            <input
+              type="text"
+              placeholder="Name"
+              value={filters.name}
+              onChange={(e) => handleFilterChange("name", e.target.value)}
+              className="border px-2 py-1 rounded-md w-full mb-2"
+            />
+
+            {/* Category Filter */}
+            <input
+              type="text"
+              placeholder="Category"
+              value={filters.category}
+              onChange={(e) => handleFilterChange("category", e.target.value)}
+              className="border px-2 py-1 rounded-md w-full mb-2"
+            />
+
+            {/* Subcategory Filter */}
+            <input
+              type="text"
+              placeholder="Subcategory"
+              value={filters.subcategory}
+              onChange={(e) =>
+                handleFilterChange("subcategory", e.target.value)
+              }
+              className="border px-2 py-1 rounded-md w-full mb-2"
+            />
+
+            {/* Created At Filter */}
+            <div className="mb-2">
+              <label>Created At</label>
+              <input
+                type="date"
+                value={filters.createdAt.from}
+                onChange={(e) =>
+                  handleFilterChange("createdAt", {
+                    ...filters.createdAt,
+                    from: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full mb-1"
+              />
+              <input
+                type="date"
+                value={filters.createdAt.to}
+                onChange={(e) =>
+                  handleFilterChange("createdAt", {
+                    ...filters.createdAt,
+                    to: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full"
+              />
+            </div>
+
+            {/* Updated At Filter */}
+            <div className="mb-2">
+              <label>Updated At</label>
+              <input
+                type="date"
+                value={filters.updatedAt.from}
+                onChange={(e) =>
+                  handleFilterChange("updatedAt", {
+                    ...filters.updatedAt,
+                    from: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full mb-1"
+              />
+              <input
+                type="date"
+                value={filters.updatedAt.to}
+                onChange={(e) =>
+                  handleFilterChange("updatedAt", {
+                    ...filters.updatedAt,
+                    to: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full"
+              />
+            </div>
+
+            {/* Price Filter */}
+            <div className="mb-2">
+              <label>Price</label>
+              <input
+                type="number"
+                placeholder="From"
+                value={filters.price.from}
+                onChange={(e) =>
+                  handleFilterChange("price", {
+                    ...filters.price,
+                    from: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full mb-1"
+              />
+              <input
+                type="number"
+                placeholder="To"
+                value={filters.price.to}
+                onChange={(e) =>
+                  handleFilterChange("price", {
+                    ...filters.price,
+                    to: e.target.value,
+                  })
+                }
+                className="border px-2 py-1 rounded-md w-full"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Grouping Panel */}
+      {showGroupingPanel && (
+        <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold">Create Groups</h2>
+            <XMarkIcon
+              className="w-5 h-5 text-gray-600 cursor-pointer"
+              onClick={() => setShowGroupingPanel(false)}
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="text-sm text-gray-600">Select Column</label>
+            <select
+              value={selectedGroupColumn}
+              onChange={(e) => setSelectedGroupColumn(e.target.value)}
+              className="mt-2 w-full border px-2 py-1 rounded-md"
+            >
+              <option value="">Select a column</option>
+              <option value="category">Category</option>
+              {/* Add other groupable columns here */}
+            </select>
+
+            <div className="mt-4">
+              <button
+                onClick={handleApplyGrouping}
+                className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+              >
+                Apply Grouping
+              </button>
+            </div>
+
+            <div className="mt-2">
+              <button
+                onClick={handleClearGrouping}
+                className="w-full bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600"
+              >
+                Clear Grouping
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sorting Panel */}
+      {showSortingPanel && (
+        <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold">Sorting Options</h2>
+            <XMarkIcon
+              className="w-5 h-5 text-gray-600 cursor-pointer"
+              onClick={() => setShowSortingPanel(false)}
+            />
+          </div>
+          <div className="mt-4">
+            {showSortingPanel && (
+              <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold">Sorting Options</h2>
+                  <XMarkIcon
+                    className="w-5 h-5 text-gray-600 cursor-pointer"
+                    onClick={() => setShowSortingPanel(false)}
+                  />
+                </div>
+                <div className="mt-4">
+                  {columns && columns.length > 0 && (
+                    <ul className="list-none">
+                      {headerGroups.map((headerGroup) => (
+                        <li key={headerGroup.id}>
+                          {headerGroup.headers.map((column) => (
+                            <div
+                              key={column.id}
+                              {...column.getHeaderProps(
+                                column.getSortByToggleProps()
+                              )}
+                              className="py-2 px-2 m-4 border rounded-md border-blue-200 text-gray-600 text-sm cursor-pointer hover:text-blue-500"
+                            >
+                              {column.render("Header")}
+                            </div>
+                          ))}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <button
+                  className="bg-gray-500 text-white px-3 py-1 rounded-md w-full mt-4"
+                  onClick={handleClearSorting}
+                >
+                  Clear Sort
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {showColumnPanel && (
+        <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold">Show/Hide Columns</h2>
+            <XMarkIcon
+              className="w-5 h-5 text-gray-600 cursor-pointer"
+              onClick={() => setShowColumnPanel(false)}
+            />
+          </div>
+
+          <div className="mt-4">
+            {columns.map((column) => (
+              <div
+                key={column.accessor}
+                className="flex justify-between items-center py-2"
+              >
+                <span className="text-sm text-gray-600">{column.Header}</span>
+                <input
+                  type="checkbox"
+                  checked={columnVisibility[column.accessor]}
+                  onChange={() => handleToggleColumn(column.accessor)}
+                  className="form-checkbox h-5 w-5"
+                />
+              </div>
+            ))}
+
+            <div className="mt-4">
+              <button
+                onClick={() =>
+                  setColumnVisibility(
+                    columns.reduce((acc, column) => {
+                      acc[column.accessor] = true;
+                      return acc;
+                    }, {})
+                  )
+                }
+                className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+              >
+                Show all columns
+              </button>
+            </div>
+
+            <div className="mt-2">
+              <button
+                onClick={() =>
+                  setColumnVisibility(
+                    columns.reduce((acc, column) => {
+                      acc[column.accessor] = false;
+                      return acc;
+                    }, {})
+                  )
+                }
+                className="w-full bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600"
+              >
+                Hide all columns
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TableComponent;
