@@ -11,7 +11,6 @@ export const ColumnFilters = ({ columns }) => {
   const [priceRange, setPriceRange] = React.useState([0, 1000]);
   const [category, setCategory] = React.useState("");
 
-  // Range filter for price
   const handlePriceRangeChange = (event, newValue) => {
     setPriceRange(newValue);
   };

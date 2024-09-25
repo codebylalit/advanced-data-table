@@ -2,11 +2,10 @@ import React, { useState } from "react";
 
 const GlobalSearch = ({ setGlobalFilter }) => {
   const [searchValue, setSearchValue] = useState("");
-  const debouncedSearchValue = useDebounce(searchValue, 500); // Debounce for 500ms
+  const debouncedSearchValue = useDebounce(searchValue, 500); 
 
-  // Update the global filter when debounced value changes
   React.useEffect(() => {
-    setGlobalFilter(debouncedSearchValue || undefined); // Set undefined to clear the filter
+    setGlobalFilter(debouncedSearchValue || undefined); 
   }, [debouncedSearchValue, setGlobalFilter]);
 
   return (
@@ -23,7 +22,6 @@ const GlobalSearch = ({ setGlobalFilter }) => {
   );
 };
 
-// Custom debounce function
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
 

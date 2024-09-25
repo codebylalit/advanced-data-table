@@ -4,7 +4,7 @@ import { Checkbox, FormControlLabel } from "@mui/material";
 export const ColumnVisibility = ({ columns }) => {
   const [visibility, setVisibility] = React.useState(
     columns.reduce((acc, column) => {
-      acc[column.accessorKey] = true; // Default all columns to visible
+      acc[column.accessorKey] = true; 
       return acc;
     }, {})
   );
