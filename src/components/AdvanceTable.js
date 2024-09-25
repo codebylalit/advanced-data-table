@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTable, useSortBy } from "react-table";
+ import Fuse from "fuse.js";
 import {
   EyeIcon,
   ArrowsUpDownIcon,
@@ -17,14 +18,15 @@ const TableComponent = ({ columns, data }) => {
   const [searchInput, setSearchInput] = useState("");
   const [showEyePanel, setShowEyePanel] = useState(false); // New state for eye icon panel
   const [showColumnPanel, setShowColumnPanel] = useState(false);
-    const [filters, setFilters] = useState({
-      name: "",
-      category: "",
-      subcategory: "",
-      createdAt: { from: "", to: "" },
-      updatedAt: { from: "", to: "" },
-      price: { from: "", to: "" },
-    });
+  const [filters, setFilters] = useState({
+    name: "",
+    category: "",
+    subcategory: "",
+    createdAt: { from: "", to: "" },
+    updatedAt: { from: "", to: "" },
+    price: { from: "", to: "" },
+  });
+
   const [columnVisibility, setColumnVisibility] = useState(
     columns.reduce((acc, column) => {
       acc[column.accessor] = true;
@@ -39,68 +41,115 @@ const TableComponent = ({ columns, data }) => {
     prepareRow,
     setSortBy,
   } = useTable({ columns, data }, useSortBy);
+  const [filteredResults, setFilteredResults] = useState(data); // Initialize with original data
 
-  const rowsPerPage = 10;
-  const startRow = currentPage * rowsPerPage;
-  const endRow = startRow + rowsPerPage;
+  const rowsPerPage = 10; // Number of rows to display per page
 
-  
-  // Filter the rows based on the filters state
-  const filteredRows = rows.filter((row) => {
-    const { name, category, subcategory, createdAt, updatedAt, price } =
-      filters;
+  const startRow = currentPage * rowsPerPage; // Starting row index
+  const endRow = startRow + rowsPerPage; // Ending row index
 
-    // Filter by name
-  const matchesName = name
-    ? row.original.someColumnName &&
-      row.original.someColumnName.toLowerCase().includes(name.toLowerCase())
-    : true;
+  // Calculate displayed rows based on filtered results or grouped data
+  const displayedRows =
+    filteredResults.length > 0
+      ? filteredResults.slice(startRow, endRow) // Slice filtered results
+      : groupedData
+      ? groupedData
+          .flatMap((group) =>
+            group.subcategories.flatMap((subgroup) => subgroup.items)
+          )
+          .slice(startRow, endRow) // Slice grouped data
+      : [];
 
-    // Filter by category
-    const matchesCategory = category
-      ? row.original.category === category
-      : true;
+  // Pagination controls
+  const pageCount = Math.ceil(filteredResults.length / rowsPerPage); // Total number of pages based on filtered results
 
-    // Filter by subcategory
-    const matchesSubcategory = subcategory
-      ? row.original.subcategory === subcategory
-      : true;
+  // Inside your TableComponent
+  const filterData = (currentFilters) => {
+    const options = {
+      keys: ["name"], // Fields to search in
+      includeScore: true,
+      threshold: 0.4, // Adjust for fuzziness (0 = exact match, 1 = no match)
+    };
 
-    // Filter by createdAt range
-    const matchesCreatedAt =
-      (!createdAt.from ||
-        new Date(row.original.createdAt) >= new Date(createdAt.from)) &&
-      (!createdAt.to ||
-        new Date(row.original.createdAt) <= new Date(createdAt.to));
+    const fuse = new Fuse(data, options);
 
-    // Filter by updatedAt range
-    const matchesUpdatedAt =
-      (!updatedAt.from ||
-        new Date(row.original.updatedAt) >= new Date(updatedAt.from)) &&
-      (!updatedAt.to ||
-        new Date(row.original.updatedAt) <= new Date(updatedAt.to));
+    const filteredByName = currentFilters.name
+      ? fuse.search(currentFilters.name).map((result) => result.item)
+      : data;
 
-    // Filter by price range
-    const matchesPrice =
-      (!price.from || row.original.price >= price.from) &&
-      (!price.to || row.original.price <= price.to);
+    const filteredResults = filteredByName.filter((item) => {
+      const matchesCategory = currentFilters.category
+        ? item.category
+            ?.toLowerCase()
+            .includes(currentFilters.category.toLowerCase())
+        : true;
+      const matchesSubcategory = currentFilters.subcategory
+        ? item.subcategory
+            ?.toLowerCase()
+            .includes(currentFilters.subcategory.toLowerCase())
+        : true;
 
-    return (
-      matchesName &&
-      matchesCategory &&
-      matchesSubcategory &&
-      matchesCreatedAt &&
-      matchesUpdatedAt &&
-      matchesPrice
-    );
-  });
+      const matchesCreatedAt =
+        (!currentFilters.createdAt.from ||
+          new Date(item.createdAt) >=
+            new Date(currentFilters.createdAt.from)) &&
+        (!currentFilters.createdAt.to ||
+          new Date(item.createdAt) <= new Date(currentFilters.createdAt.to));
 
-  const displayedRows = groupedData
-    ? groupedData
-        .map((group) => group.items)
-        .flat()
-        .slice(startRow, endRow)
-    : rows.slice(startRow, endRow);
+      const matchesUpdatedAt =
+        (!currentFilters.updatedAt.from ||
+          new Date(item.updatedAt) >=
+            new Date(currentFilters.updatedAt.from)) &&
+        (!currentFilters.updatedAt.to ||
+          new Date(item.updatedAt) <= new Date(currentFilters.updatedAt.to));
+
+      const matchesPrice =
+        (!currentFilters.price.from ||
+          item.price >= currentFilters.price.from) &&
+        (!currentFilters.price.to || item.price <= currentFilters.price.to);
+
+      return (
+        matchesCategory &&
+        matchesSubcategory &&
+        matchesCreatedAt &&
+        matchesUpdatedAt &&
+        matchesPrice
+      );
+    });
+
+    console.log("Filtered results:", filteredResults.length);
+    setFilteredResults(filteredResults);
+  };
+
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        func(...args);
+      }, delay);
+    };
+  };
+
+  const debouncedFilterData = useCallback(debounce(filterData, 300), [data]);
+
+  const handleFilterChange = (field, value) => {
+    setFilters((prevFilters) => {
+      const updatedFilters = {
+        ...prevFilters,
+        [field]: value,
+      };
+      debouncedFilterData(updatedFilters); // Use the debounced function
+      return updatedFilters;
+    });
+  };
+
+  // Call filterData initially to populate filteredResults with default filters
+  useEffect(() => {
+    filterData(filters);
+  }, [data]); // Run filterData whenever data changes
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -114,10 +163,6 @@ const TableComponent = ({ columns, data }) => {
     setColumnVisibility(newVisibility);
   };
 
-  const pageCount = Math.ceil(
-    (groupedData ? groupedData.map((group) => group.items).flat() : rows)
-      .length / rowsPerPage
-  );
 
   const handleGroupByCategoryAndSubcategory = (
     categoryColumnId,
@@ -160,13 +205,6 @@ const TableComponent = ({ columns, data }) => {
     setSortBy([]); // Reset sorting to default state
   };
 
-   const handleFilterChange = (field, value) => {
-     setFilters((prevFilters) => ({
-       ...prevFilters,
-       [field]: value,
-     }));
-   };
-
   const handleSort = (columnId) => {
     const newData = [...data];
     const sortedData = newData.sort((a, b) => {
@@ -208,6 +246,7 @@ const TableComponent = ({ columns, data }) => {
         </div>
       </div>
 
+      {/* Table Component */}
       <table {...getTableProps()} className="min-w-full table-auto">
         <thead>
           {headerGroups.map((headerGroup) => (
@@ -225,72 +264,49 @@ const TableComponent = ({ columns, data }) => {
         </thead>
 
         <tbody {...getTableBodyProps()}>
-          {groupedData && groupedData.length > 0
-            ? groupedData.map((group) => (
-                <React.Fragment key={group.category}>
-                  <tr className="bg-gray-200">
-                    <td
-                      colSpan={columns.length}
-                      className="px-4 py-2 font-semibold"
-                    >
-                      Category: {group.category}
-                    </td>
-                  </tr>
-                  {group.subcategories.map((subgroup) => (
-                    <React.Fragment key={subgroup.subcategory}>
-                      <tr className="bg-gray-100">
-                        <td
-                          colSpan={columns.length}
-                          className="px-4 py-2 font-medium"
-                        >
-                          Subcategory: {subgroup.subcategory}
-                        </td>
-                      </tr>
-                      {subgroup.items.map((item, index) => (
-                        <tr key={index} className="border-b">
-                          {columns.map((column) => (
-                            <td
-                              key={column.accessor}
-                              className={`px-4 py-2 text-sm text-gray-700 ${
-                                !columnVisibility[column.accessor]
-                                  ? "hidden"
-                                  : ""
-                              }`}
-                            >
-                              {item[column.accessor]}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </React.Fragment>
-              ))
-            : displayedRows.map((row) => {
-                prepareRow(row);
-                return (
-                  <tr {...row.getRowProps()} className="border-b">
-                    {row.cells.map((cell) => (
-                      <td
-                        {...cell.getCellProps()}
-                        className={`px-4 py-2 text-sm text-gray-700 ${
-                          !columnVisibility[cell.column.id] ? "hidden" : ""
-                        }`}
-                      >
-                        {cell.render("Cell")}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
+          {displayedRows.length > 0 ? (
+            displayedRows.map((item) => (
+              <tr key={item.id} className="border-b">
+                {columns.map((column) => (
+                  <td
+                    key={column.accessor}
+                    className={`px-4 py-2 text-sm text-gray-700 ${
+                      !columnVisibility[column.accessor] ? "hidden" : ""
+                    }`}
+                  >
+                    {item[column.accessor]}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={columns.length} className="px-4 py-2 text-center">
+                No results found.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       <div className="flex justify-between items-center mt-4">
         <span className="text-sm text-gray-600">
           Showing {startRow + 1} to{" "}
-          {Math.min(endRow, (groupedData || rows).length)} of{" "}
-          {(groupedData || rows).length} entries
+          {Math.min(
+            endRow,
+            filteredResults.length ||
+              groupedData?.flatMap((group) =>
+                group.subcategories.flatMap((subgroup) => subgroup.items)
+              ).length ||
+              0
+          )}{" "}
+          of{" "}
+          {filteredResults.length ||
+            groupedData?.flatMap((group) =>
+              group.subcategories.flatMap((subgroup) => subgroup.items)
+            ).length ||
+            0}{" "}
+          entries
         </span>
 
         <div className="flex justify-center space-x-1">
@@ -325,7 +341,14 @@ const TableComponent = ({ columns, data }) => {
               type="text"
               placeholder="Name"
               value={filters.name}
-              onChange={(e) => handleFilterChange("name", e.target.value)}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                handleFilterChange("name", newValue);
+                setFilters((prev) => ({
+                  ...prev,
+                  name: newValue,
+                }));
+              }}
               className="border px-2 py-1 rounded-md w-full mb-2"
             />
 
@@ -431,6 +454,23 @@ const TableComponent = ({ columns, data }) => {
                 className="border px-2 py-1 rounded-md w-full"
               />
             </div>
+
+            {/* Clear Filters Button */}
+            <button
+              onClick={() => {
+                setFilters({
+                  name: "",
+                  category: "",
+                  subcategory: "",
+                  createdAt: { from: "", to: "" },
+                  updatedAt: { from: "", to: "" },
+                  price: { from: "", to: "" },
+                });
+              }}
+              className="mt-4 w-full bg-red-500 text-white py-2 rounded-md hover:bg-red-600 transition duration-200"
+            >
+              Clear Filters
+            </button>
           </div>
         </div>
       )}

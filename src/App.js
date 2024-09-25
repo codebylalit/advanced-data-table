@@ -34,7 +34,7 @@ const App = () => {
    },
    {
      Header: "Sale Price",
-     accessor: "salePrice",
+     accessor: "sale_price",
    },
  ];
 
