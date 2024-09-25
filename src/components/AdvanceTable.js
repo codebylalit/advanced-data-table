@@ -571,6 +571,7 @@ const TableComponent = ({ columns, data }) => {
           </div>
         </div>
       )}
+      {/* Column Panel */}
       {showColumnPanel && (
         <div className="fixed top-0 right-0 w-72 h-full bg-white p-4 border-l shadow-lg transform transition-transform duration-500">
           <div className="flex justify-between items-center">
